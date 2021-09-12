@@ -131,25 +131,14 @@ func (b *Bot) GetAffordableBudget() float64 {
 }
 
 func (b *Bot) GetQuantityDecimal(symbol string) int {
-	var dec int
-
-	switch symbol {
-	case "ADAUSDT":
-		fallthrough
-	case "MATICUSDT":
-		fallthrough
-	case "ALGOUSDT":
-		dec = 1
-		break
-	case "SOLUSDT":
-		dec = 2
-		break
-	case "BTCUSDT":
-		dec = 5
-		break
+	m := map[string]int{
+		"ADAUSDT":   1,
+		"MATICUSDT": 1,
+		"ALGOUSDT":  1,
+		"SOLUSDT":   2,
+		"BTCUSDT":   5,
 	}
-
-	return dec
+	return m[symbol]
 }
 
 func (b *Bot) GetBuyQuantity(symbol string, price float64) (string, error) {

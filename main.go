@@ -8,15 +8,10 @@ import (
 	"github.com/adshao/go-binance/v2"
 )
 
-var (
-	apiKey    = os.Getenv("BINANCE_API_KEY")
-	secretKey = os.Getenv("BINANCE_SECRET_KEY")
-	symbols   = []string{"ALGOUSDT", "SOLUSDT", "MATICUSDT", "ADAUSDT", "BTCUSDT"}
-	delay     = 15 * time.Minute
-)
+var symbols = []string{"ALGOUSDT", "SOLUSDT", "MATICUSDT", "ADAUSDT", "BTCUSDT"}
 
 func main() {
-	client := binance.NewClient(apiKey, secretKey)
+	client := binance.NewClient(os.Getenv("BINANCE_API_KEY"), os.Getenv("BINANCE_SECRET_KEY"))
 
 	for {
 		for _, symbol := range symbols {
@@ -25,6 +20,6 @@ func main() {
 		}
 
 		log.Println("going to sleep for 15 minutes.")
-		time.Sleep(delay)
+		time.Sleep(15 * time.Minute)
 	}
 }
