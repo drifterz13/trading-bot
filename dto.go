@@ -31,7 +31,7 @@ type OrderFloat64 struct {
 }
 
 func (o *Order) IsEmpty() bool {
-	return *o == (Order{})
+	return *o == (Order{}) || o == nil
 }
 
 func (o Order) ToFloat64() *OrderFloat64 {

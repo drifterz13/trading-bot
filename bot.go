@@ -47,24 +47,17 @@ func (b *Bot) Run(symbol string) {
 	latestPriceRatio := GetPriceRatio(latestPrice, ohlc.High)
 	recentOrder := b.orderManager.GetRecentOrder(symbol)
 
-	log.Printf("[%v] balance: %.2f", symbol, balance)
-	log.Printf("[%v] latest price: %.2f, high: %.2f, and ratio: %.2f", symbol, latestPrice, ohlc.High, latestPriceRatio)
+	value := balance * latestPrice
 
-	var boughtPrice float64
-	if recentOrder == nil || recentOrder.IsEmpty() {
-		boughtPrice = 0
-	} else {
-		boughtPrice = recentOrder.ToFloat64().Price
-	}
+	log.Printf("[%v] balance: %.2f, total: %.2f", symbol, balance, value)
+	log.Printf("[%v] current: %.2f, high: %.2f, ratio: %.2f%%", symbol, latestPrice, ohlc.High, latestPriceRatio)
 
-	if boughtPrice*balance < 10 && latestPriceRatio < -3 {
-		log.Printf("[%v] buying...", symbol)
+	if value < 10 && latestPriceRatio < -3 {
 		if b.orderManager.IsOrderOpen(symbol) {
 			log.Printf("[%v] order is already open.", symbol)
-
 			return
 		}
-		// consider buying
+
 		qty, err := b.GetBuyQuantity(symbol, latestPrice)
 		if err != nil {
 			panic(err)
@@ -76,8 +69,7 @@ func (b *Bot) Run(symbol string) {
 			Type:     BuyType,
 		}
 		b.orderManager.Buy(order)
-		log.Printf("[%v] buy order price: %v, quantity: %v", order.Symbol, order.Price, order.Quantity)
-
+		log.Printf("[%v] buying at: %v, quantity: %v", order.Symbol, order.Price, order.Quantity)
 		return
 	}
 
@@ -85,21 +77,18 @@ func (b *Bot) Run(symbol string) {
 		log.Printf("[%v] recent order not found.", symbol)
 		return
 	}
-	log.Printf("[%v] recent order price: %v, quantity: %v", symbol, recentOrder.Price, recentOrder.Quantity)
 
+	boughtPrice := recentOrder.ToFloat64().Price
 	boughtPriceRatio := GetPriceRatio(latestPrice, boughtPrice)
-	log.Printf("[%v] bought price: %v, latest price: %.2f, and ratio: %v", symbol, boughtPrice, latestPrice, boughtPriceRatio)
+	log.Printf("[%v] bought: %v, current: %.2f, ratio: %.2f%%", symbol, boughtPrice, latestPrice, boughtPriceRatio)
 
-	if balance >= 10 && boughtPriceRatio <= -20 {
-		log.Printf("[%v] going to stop loss...", symbol)
+	if value >= 10 && (boughtPriceRatio <= -20 || boughtPriceRatio >= 5) {
+		log.Printf("[%v] selling because gain/loss :%.2f%%", symbol, boughtPriceRatio)
 		if b.orderManager.IsOrderOpen(symbol) {
 			log.Printf("[%v] order is already open.", symbol)
-
 			return
 		}
 
-		// stop loss
-		log.Printf("[%v] balance: %.2f", symbol, balance)
 		p := ToFixed(latestPrice, 2)
 		q := ToFixed(balance/latestPrice, b.GetQuantityDecimal(symbol))
 
@@ -111,31 +100,7 @@ func (b *Bot) Run(symbol string) {
 		}
 
 		b.orderManager.Sell(order)
-		log.Printf("[%v] stop loss order price: %v, quantity: %v", order.Symbol, order.Price, order.Quantity)
-
-		return
-	}
-
-	if balance >= 10 && boughtPriceRatio >= 5 {
-		log.Printf("[%v] going to take profit...", symbol)
-		if b.orderManager.IsOrderOpen(symbol) {
-			log.Printf("[%v] order is already open.", symbol)
-
-			return
-		}
-
-		// taking profit
-		log.Printf("[%v] balance: %.2f", symbol, balance)
-		p := ToFixed(latestPrice, 2)
-		q := ToFixed(balance/latestPrice, b.GetQuantityDecimal(symbol))
-		order := &Order{
-			Symbol:   symbol,
-			Price:    strconv.FormatFloat(p, 'f', -1, 64),
-			Quantity: strconv.FormatFloat(q, 'f', -1, 64),
-			Type:     SellType,
-		}
-		b.orderManager.Sell(order)
-		log.Printf("[%v] taking porift order price: %v, quantity: %v", order.Symbol, order.Price, order.Quantity)
+		log.Printf("[%v] selling at: %v, quantity: %v", order.Symbol, order.Price, order.Quantity)
 	}
 }
 
