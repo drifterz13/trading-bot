@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"strconv"
 
@@ -40,36 +41,39 @@ func NewBot(client *binance.Client, repo DataStore) *Bot {
 	}
 }
 
-func (s *Bot) Run(symbol string) {
-	ohlc := s.klineManager.GetAvgOHLC(symbol, "15m", 48)
-	latestPrice := s.priceManager.GetLatestPrice(symbol)
-	balance := s.accountManager.GetBalance(symbol)
+func (b *Bot) Run(symbol string) {
+	ohlc := b.klineManager.GetAvgOHLC(symbol, "15m", 48)
+	latestPrice := b.priceManager.GetLatestPrice(symbol)
+	balance := b.accountManager.GetBalance(symbol)
 	latestPriceRatio := GetPriceRatio(latestPrice, ohlc.High)
 
 	log.Printf("[%v] latest price: %.2f, high: %.2f, and ratio: %.2f", symbol, latestPrice, ohlc.High, latestPriceRatio)
 
 	if balance == 0 && latestPriceRatio < -3 {
 		log.Printf("[%v] buying...", symbol)
-		if s.orderManager.IsOrderOpen(symbol) {
+		if b.orderManager.IsOrderOpen(symbol) {
 			log.Printf("[%v] order is already open.", symbol)
 
 			return
 		}
 		// consider buying
-		qty := s.GetBuyQuantity(symbol, latestPrice)
+		qty, err := b.GetBuyQuantity(symbol, latestPrice)
+		if err != nil {
+			panic(err)
+		}
 		order := &Order{
 			Symbol:   symbol,
 			Price:    strconv.FormatFloat(latestPrice, 'f', -1, 64),
 			Quantity: qty,
 			Type:     BuyType,
 		}
-		s.orderManager.Buy(order)
+		b.orderManager.Buy(order)
 		log.Printf("[%v] buy order price: %v, quantity: %v, type: %v", order.Symbol, order.Price, order.Quantity, order.Type)
 
 		return
 	}
 
-	lastOrder := s.repo.Last(symbol)
+	lastOrder := b.repo.Last(symbol)
 
 	if lastOrder.IsEmpty() {
 		log.Printf("[%v] last order not found.", symbol)
@@ -79,13 +83,13 @@ func (s *Bot) Run(symbol string) {
 	log.Printf("[%v] last order price: %v, quantity: %v, type: %v", lastOrder.Symbol, lastOrder.Price, lastOrder.Quantity, lastOrder.Type)
 
 	boughtPrice := lastOrder.ToFloat64().Price
-	boughtPriceRatio := GetPriceRatio(boughtPrice, latestPrice)
+	boughtPriceRatio := GetPriceRatio(latestPrice, boughtPrice)
 
 	log.Printf("[%v] bought price: %v, latest price: %.2f, and ratio: %v", symbol, boughtPrice, latestPrice, boughtPriceRatio)
 
 	if balance > 0 && boughtPriceRatio <= -20 {
-		log.Printf("[%v] going to stop loss...", symbol)
-		if s.orderManager.IsOrderOpen(symbol) {
+		log.Printf("[%v] going to stop losb...", symbol)
+		if b.orderManager.IsOrderOpen(symbol) {
 			log.Printf("[%v] order is already open.", symbol)
 
 			return
@@ -94,7 +98,7 @@ func (s *Bot) Run(symbol string) {
 		// stop loss
 		log.Printf("[%v] balance: %.2f", symbol, balance)
 		p := ToFixed(latestPrice, 2)
-		q := ToFixed(balance/latestPrice, s.GetQuantityDecimal(symbol))
+		q := ToFixed(balance/latestPrice, b.GetQuantityDecimal(symbol))
 
 		order := &Order{
 			Symbol:   symbol,
@@ -108,7 +112,7 @@ func (s *Bot) Run(symbol string) {
 			return
 		}
 
-		s.orderManager.Sell(order)
+		b.orderManager.Sell(order)
 		log.Printf("[%v] stop loss order price: %v, quantity: %v, type: %v", order.Symbol, order.Price, order.Quantity, order.Type)
 
 		return
@@ -116,7 +120,7 @@ func (s *Bot) Run(symbol string) {
 
 	if balance > 0 && boughtPriceRatio >= 5 {
 		log.Printf("[%v] going to take profit...", symbol)
-		if s.orderManager.IsOrderOpen(symbol) {
+		if b.orderManager.IsOrderOpen(symbol) {
 			log.Printf("[%v] order is already open.", symbol)
 
 			return
@@ -125,7 +129,7 @@ func (s *Bot) Run(symbol string) {
 		// taking profit
 		log.Printf("[%v] balance: %.2f", symbol, balance)
 		p := ToFixed(latestPrice, 2)
-		q := ToFixed(balance/latestPrice, s.GetQuantityDecimal(symbol))
+		q := ToFixed(balance/latestPrice, b.GetQuantityDecimal(symbol))
 		order := &Order{
 			Symbol:   symbol,
 			Price:    strconv.FormatFloat(p, 'f', -1, 64),
@@ -137,23 +141,27 @@ func (s *Bot) Run(symbol string) {
 			return
 		}
 
-		s.orderManager.Sell(order)
+		b.orderManager.Sell(order)
 		log.Printf("[%v] taking porift order price: %v, quantity: %v, type: %v", order.Symbol, order.Price, order.Quantity, order.Type)
 	}
 }
 
-func (s *Bot) GetAffordableBudget() float64 {
+func (b *Bot) GetAffordableBudget() float64 {
 	var bought float64
-	usdt := s.accountManager.GetBalance("USDT")
+	usdt := b.accountManager.GetBalance("USDT")
 	for _, sym := range symbols {
-		bal := s.accountManager.GetBalance(sym)
+		bal := b.accountManager.GetBalance(sym)
 		if bal > 0 {
 			bought = bought + 1
 		}
 	}
 
-	budget := (float64(len(symbols)) - bought) / usdt
+	totalSymbols := float64(len(symbols))
+	if bought == totalSymbols {
+		return 0
+	}
 
+	budget := usdt / (totalSymbols - bought)
 	// Binance not allow order that less than 10$.
 	if budget < 10 {
 		return 0
@@ -162,7 +170,7 @@ func (s *Bot) GetAffordableBudget() float64 {
 	return budget
 }
 
-func (s *Bot) GetQuantityDecimal(symbol string) int {
+func (b *Bot) GetQuantityDecimal(symbol string) int {
 	var dec int
 
 	switch symbol {
@@ -171,7 +179,7 @@ func (s *Bot) GetQuantityDecimal(symbol string) int {
 	case "MATICUSDT":
 		fallthrough
 	case "ALGOUSDT":
-		dec = 0
+		dec = 1
 		break
 	case "SOLUSDT":
 		dec = 2
@@ -184,10 +192,21 @@ func (s *Bot) GetQuantityDecimal(symbol string) int {
 	return dec
 }
 
-func (s *Bot) GetBuyQuantity(symbol string, price float64) string {
-	dec := s.GetQuantityDecimal(symbol)
-	budget := s.GetAffordableBudget()
+func (b *Bot) GetBuyQuantity(symbol string, price float64) (string, error) {
+	var included bool
+	for _, s := range symbols {
+		if s == symbol {
+			included = true
+		}
+	}
+
+	if !included {
+		return "", errors.New("GetBuyQuantity: invalid symbol")
+	}
+
+	dec := b.GetQuantityDecimal(symbol)
+	budget := b.GetAffordableBudget()
 	qty := ToFixed((budget / price), dec)
 
-	return strconv.FormatFloat(qty, 'f', -1, 64)
+	return strconv.FormatFloat(qty, 'f', -1, 64), nil
 }

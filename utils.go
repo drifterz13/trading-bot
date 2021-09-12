@@ -14,5 +14,5 @@ func ToFixed(num float64, precision int) float64 {
 }
 
 func GetPriceRatio(price float64, comparer float64) float64 {
-	return 100 - ((price / comparer) * 100)
+	return ToFixed(((price/comparer)*100)-100, 2)
 }
