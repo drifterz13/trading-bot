@@ -1,15 +1,11 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"os"
 	"time"
 
 	"github.com/adshao/go-binance/v2"
-	bot "github.com/drifterz13/trading-bot/internal/bot"
-	db "github.com/drifterz13/trading-bot/internal/database"
-	bolt "go.etcd.io/bbolt"
 )
 
 var (
@@ -20,31 +16,23 @@ var (
 )
 
 func main() {
-	flag.Parse()
-
-	var dbPath string
-	if os.Getenv("APP_ENV") == "dev" {
-		dbPath = "./data/dev.db"
-	} else {
-		dbPath = "./data/prod.db"
-	}
-
-	boltDB, err := bolt.Open(dbPath, 0600, nil)
+	db, err := NewDB()
 	if err != nil {
-		log.Fatal(err)
+		panic(db)
 	}
-	defer boltDB.Close()
+	defer db.Close()
 
-	repo := db.NewBoltRepository(boltDB)
+	repo := NewDataStore(db)
 	client := binance.NewClient(apiKey, secretKey)
 
 	for {
 		for _, symbol := range symbols {
 			repo.CreateBucket(symbol)
-			b := bot.NewBot(client, repo)
-			b.Run(symbol)
+			bot := NewBot(client, repo)
+			bot.Run(symbol)
 		}
 
+		log.Println("going to sleep for 15 minutes.")
 		time.Sleep(delay)
 	}
 }

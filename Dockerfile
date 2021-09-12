@@ -6,15 +6,15 @@ COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
 
-COPY *.go ./
+COPY . ./
 
-RUN go build -o /robo
+RUN go build -o /bot
 
 FROM alpine:edge
 
 WORKDIR /
 
 RUN mkdir -p data
-COPY --from=build /robo /robo
+COPY --from=build /bot /bot
 
-ENTRYPOINT ["/robo"]
+ENTRYPOINT ["/bot"]

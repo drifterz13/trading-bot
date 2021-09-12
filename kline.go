@@ -1,4 +1,4 @@
-package manager
+package main
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/adshao/go-binance/v2"
-	"github.com/drifterz13/trading-bot/internal/dto"
 )
 
 type klineManager struct {
@@ -18,7 +17,7 @@ func NewKlineManager(client *binance.Client) *klineManager {
 	return &klineManager{client: client}
 }
 
-func (km *klineManager) GetAvgOHLC(symbol string, interval string, limit int) *dto.Kline {
+func (km *klineManager) GetAvgOHLC(symbol string, interval string, limit int) *Kline {
 	klines, err := km.client.NewKlinesService().Symbol(symbol).
 		Interval(interval).Limit(limit).Do(context.Background())
 
@@ -63,5 +62,5 @@ func (km *klineManager) GetAvgOHLC(symbol string, interval string, limit int) *d
 	avglow = avglow / float64(len(klines))
 	avgclose = avgclose / float64(len(klines))
 
-	return &dto.Kline{Open: avgopen, High: avghigh, Low: avglow, Close: avgclose}
+	return &Kline{Open: avgopen, High: avghigh, Low: avglow, Close: avgclose}
 }

@@ -1,12 +1,11 @@
-package manager
+package main
 
 import (
 	"context"
+	"log"
 	"os"
 
 	"github.com/adshao/go-binance/v2"
-	db "github.com/drifterz13/trading-bot/internal/database"
-	"github.com/drifterz13/trading-bot/internal/dto"
 )
 
 var appEnv = os.Getenv("APP_ENV")
@@ -14,10 +13,10 @@ var appEnv = os.Getenv("APP_ENV")
 type orderManager struct {
 	orderSrv     *binance.CreateOrderService
 	listOrderSrv *binance.ListOrdersService
-	repo         db.BoltRepository
+	repo         DataStore
 }
 
-func NewOrderManager(client *binance.Client, repo db.BoltRepository) *orderManager {
+func NewOrderManager(client *binance.Client, repo DataStore) *orderManager {
 	orderSrv := client.
 		NewCreateOrderService().
 		Type(binance.OrderTypeLimit).
@@ -32,7 +31,7 @@ func NewOrderManager(client *binance.Client, repo db.BoltRepository) *orderManag
 	}
 }
 
-func (om *orderManager) Sell(order *dto.Order) {
+func (om *orderManager) Sell(order *Order) {
 	sellSrv := om.orderSrv.Symbol(order.Symbol).Price(order.Price).Quantity(order.Quantity).Side(binance.SideTypeSell)
 
 	ctx := context.Background()
@@ -51,7 +50,7 @@ func (om *orderManager) Sell(order *dto.Order) {
 	om.repo.Save(order)
 }
 
-func (om *orderManager) Buy(order *dto.Order) {
+func (om *orderManager) Buy(order *Order) {
 	buySrv := om.orderSrv.Symbol(order.Symbol).Price(order.Price).Quantity(order.Quantity).Side(binance.SideTypeBuy)
 
 	ctx := context.Background()
@@ -78,7 +77,8 @@ func (om *orderManager) IsOrderOpen(symbol string) bool {
 	}
 
 	for _, o := range openOrders {
-		if o.Symbol == symbol {
+		if o.Symbol == symbol && o.Status == binance.OrderStatusTypeNew {
+			log.Printf("[%v] order status: %v, side: %v\n", o.Symbol, o.Status, o.Side)
 			return true
 		}
 	}

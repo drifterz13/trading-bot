@@ -1,6 +1,8 @@
-package dto
+package main
 
-import "strconv"
+import (
+	"strconv"
+)
 
 var (
 	BuyType  = "BUY"
@@ -15,10 +17,10 @@ type Kline struct {
 }
 
 type Order struct {
-	Symbol   string
-	Quantity string
-	Price    string
-	Type     string
+	Symbol   string `json:"symbol"`
+	Quantity string `json:"quantity"`
+	Price    string `json:"price"`
+	Type     string `json:"type"`
 }
 
 type OrderFloat64 struct {
@@ -28,16 +30,19 @@ type OrderFloat64 struct {
 	Type     string
 }
 
-func (o *Order) IsEmpty() bool {
-	return *o == (Order{})
+func (o Order) IsEmpty() bool {
+	return o == (Order{})
 }
 
-func (o *Order) ToFloat64() *OrderFloat64 {
+func (o Order) ToFloat64() *OrderFloat64 {
 	var err error
 	var qty float64
 	var price float64
 
 	qty, err = strconv.ParseFloat(o.Quantity, 64)
+	if err != nil {
+		panic(err)
+	}
 	price, err = strconv.ParseFloat(o.Price, 64)
 	if err != nil {
 		panic(err)

@@ -1,4 +1,4 @@
-package utils
+package main
 
 import (
 	"math"
@@ -14,6 +14,5 @@ func ToFixed(num float64, precision int) float64 {
 }
 
 func GetPriceRatio(price float64, comparer float64) float64 {
-	r := (100 / comparer) * price
-	return r - 100
+	return 100 - ((price / comparer) * 100)
 }
