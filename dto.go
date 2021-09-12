@@ -17,10 +17,10 @@ type Kline struct {
 }
 
 type Order struct {
-	Symbol   string `json:"symbol"`
-	Quantity string `json:"quantity"`
-	Price    string `json:"price"`
-	Type     string `json:"type"`
+	Symbol   string
+	Quantity string
+	Price    string
+	Type     string
 }
 
 type OrderFloat64 struct {
@@ -30,8 +30,8 @@ type OrderFloat64 struct {
 	Type     string
 }
 
-func (o Order) IsEmpty() bool {
-	return o == (Order{})
+func (o *Order) IsEmpty() bool {
+	return *o == (Order{})
 }
 
 func (o Order) ToFloat64() *OrderFloat64 {

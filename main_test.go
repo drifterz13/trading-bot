@@ -127,7 +127,6 @@ func TestBotRun_BuyAll(t *testing.T) {
 		accountManager: am,
 		orderManager:   om,
 		priceManager:   pm,
-		repo:           &mockDataStore{},
 	}
 
 	for _, symbol := range symbols {
@@ -169,9 +168,7 @@ func TestBotRun_Sell(t *testing.T) {
 		},
 	}
 
-	om := &mockOrderManager{orderOpen: false, called: map[string]int{}}
-
-	lastOrder := map[string]*Order{
+	orders := map[string]*Order{
 		// take profit
 		"SOLUSDT": {
 			Symbol:   "SOLUSDT",
@@ -190,14 +187,14 @@ func TestBotRun_Sell(t *testing.T) {
 		"MATICUSDT": {},
 		"BTCUSDT":   {},
 	}
-	ds := &mockDataStore{LastOrder: lastOrder}
+
+	om := &mockOrderManager{orderOpen: false, called: map[string]int{}, Orders: orders}
 
 	bot := &Bot{
 		klineManager:   km,
 		accountManager: am,
 		orderManager:   om,
 		priceManager:   pm,
-		repo:           ds,
 	}
 
 	for _, symbol := range symbols {

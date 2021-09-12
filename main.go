@@ -16,19 +16,11 @@ var (
 )
 
 func main() {
-	db, err := NewDB()
-	if err != nil {
-		panic(db)
-	}
-	defer db.Close()
-
-	repo := NewDataStore(db)
 	client := binance.NewClient(apiKey, secretKey)
 
 	for {
 		for _, symbol := range symbols {
-			repo.CreateBucket(symbol)
-			bot := NewBot(client, repo)
+			bot := NewBot(client)
 			bot.Run(symbol)
 		}
 

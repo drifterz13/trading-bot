@@ -13,10 +13,9 @@ var appEnv = os.Getenv("APP_ENV")
 type orderManager struct {
 	orderSrv     *binance.CreateOrderService
 	listOrderSrv *binance.ListOrdersService
-	repo         DataStore
 }
 
-func NewOrderManager(client *binance.Client, repo DataStore) *orderManager {
+func NewOrderManager(client *binance.Client) *orderManager {
 	orderSrv := client.
 		NewCreateOrderService().
 		Type(binance.OrderTypeLimit).
@@ -27,7 +26,6 @@ func NewOrderManager(client *binance.Client, repo DataStore) *orderManager {
 	return &orderManager{
 		orderSrv:     orderSrv,
 		listOrderSrv: listOrderSrv,
-		repo:         repo,
 	}
 }
 
@@ -46,8 +44,6 @@ func (om *orderManager) Sell(order *Order) {
 			panic(err)
 		}
 	}
-
-	om.repo.Save(order)
 }
 
 func (om *orderManager) Buy(order *Order) {
@@ -65,8 +61,25 @@ func (om *orderManager) Buy(order *Order) {
 			panic(err)
 		}
 	}
+}
 
-	om.repo.Save(order)
+func (om *orderManager) GetRecentOrder(symbol string) *Order {
+	orders, err := om.listOrderSrv.Symbol(symbol).Do(context.Background())
+	if err != nil {
+		log.Fatalf("error getting recent order %v", err)
+	}
+
+	if len(orders) == 0 {
+		return &Order{}
+	}
+
+	o := orders[len(orders)-1]
+	return &Order{
+		Price:    o.Price,
+		Quantity: o.OrigQuantity,
+		Symbol:   o.Symbol,
+		Type:     string(o.Side),
+	}
 }
 
 func (om *orderManager) IsOrderOpen(symbol string) bool {

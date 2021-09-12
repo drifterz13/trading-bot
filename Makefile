@@ -4,5 +4,4 @@ build-image:
 
 .PHONY: run-dev
 run-dev:
-	export APP_ENV=dev && \
-	rm -rf ./data/dev.db && touch ./data/dev.db && go run .
+	export APP_ENV=dev && go run .

@@ -19,6 +19,7 @@ func (am *mockAccountManager) GetBalance(symbol string) float64 {
 type mockOrderManager struct {
 	orderOpen bool
 	called    map[string]int
+	Orders    map[string]*Order
 }
 
 func (om *mockOrderManager) Buy(order *Order) {
@@ -29,6 +30,11 @@ func (om *mockOrderManager) Sell(order *Order) {
 	called := om.called["Sell"]
 	om.called["Sell"] = called + 1
 }
+
+func (om *mockOrderManager) GetRecentOrder(symbol string) *Order {
+	return om.Orders[symbol]
+}
+
 func (om *mockOrderManager) IsOrderOpen(symbol string) bool { return om.orderOpen }
 
 type mockPriceManager struct {
@@ -39,21 +45,9 @@ func (pm mockPriceManager) GetLatestPrice(symbol string) float64 {
 	return pm.Prices[symbol]
 }
 
-type mockDataStore struct {
-	LastOrder map[string]*Order
-}
-
-func (ds *mockDataStore) CreateBucket(name string) {}
-func (ds *mockDataStore) Save(order *Order)        {}
-func (ds *mockDataStore) Last(bucket string) *Order {
-	return ds.LastOrder[bucket]
-}
-func (ds *mockDataStore) GetAll(bucket string) {}
-
 var mockBot = &Bot{
 	klineManager:   &mockKlineManager{},
 	accountManager: &mockAccountManager{},
 	orderManager:   &mockOrderManager{orderOpen: false, called: map[string]int{}},
 	priceManager:   &mockPriceManager{},
-	repo:           &mockDataStore{},
 }

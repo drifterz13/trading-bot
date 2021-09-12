@@ -18,6 +18,7 @@ type OrderManager interface {
 	Buy(order *Order)
 	Sell(order *Order)
 	IsOrderOpen(symbol string) bool
+	GetRecentOrder(symbol string) *Order
 }
 type PriceManager interface {
 	GetLatestPrice(symbol string) float64
@@ -28,16 +29,14 @@ type Bot struct {
 	accountManager AccountManager
 	orderManager   OrderManager
 	priceManager   PriceManager
-	repo           DataStore
 }
 
-func NewBot(client *binance.Client, repo DataStore) *Bot {
+func NewBot(client *binance.Client) *Bot {
 	return &Bot{
 		klineManager:   NewKlineManager(client),
 		accountManager: NewAccountManager(client),
-		orderManager:   NewOrderManager(client, repo),
+		orderManager:   NewOrderManager(client),
 		priceManager:   NewPriceManager(client),
-		repo:           repo,
 	}
 }
 
@@ -46,10 +45,19 @@ func (b *Bot) Run(symbol string) {
 	latestPrice := b.priceManager.GetLatestPrice(symbol)
 	balance := b.accountManager.GetBalance(symbol)
 	latestPriceRatio := GetPriceRatio(latestPrice, ohlc.High)
+	recentOrder := b.orderManager.GetRecentOrder(symbol)
 
+	log.Printf("[%v] balance: %.2f", symbol, balance)
 	log.Printf("[%v] latest price: %.2f, high: %.2f, and ratio: %.2f", symbol, latestPrice, ohlc.High, latestPriceRatio)
 
-	if balance == 0 && latestPriceRatio < -3 {
+	var boughtPrice float64
+	if recentOrder == nil || recentOrder.IsEmpty() {
+		boughtPrice = 0
+	} else {
+		boughtPrice = recentOrder.ToFloat64().Price
+	}
+
+	if boughtPrice*balance < 10 && latestPriceRatio < -3 {
 		log.Printf("[%v] buying...", symbol)
 		if b.orderManager.IsOrderOpen(symbol) {
 			log.Printf("[%v] order is already open.", symbol)
@@ -68,27 +76,22 @@ func (b *Bot) Run(symbol string) {
 			Type:     BuyType,
 		}
 		b.orderManager.Buy(order)
-		log.Printf("[%v] buy order price: %v, quantity: %v, type: %v", order.Symbol, order.Price, order.Quantity, order.Type)
+		log.Printf("[%v] buy order price: %v, quantity: %v", order.Symbol, order.Price, order.Quantity)
 
 		return
 	}
 
-	lastOrder := b.repo.Last(symbol)
-
-	if lastOrder.IsEmpty() {
-		log.Printf("[%v] last order not found.", symbol)
+	if recentOrder.IsEmpty() {
+		log.Printf("[%v] recent order not found.", symbol)
 		return
 	}
+	log.Printf("[%v] recent order price: %v, quantity: %v", symbol, recentOrder.Price, recentOrder.Quantity)
 
-	log.Printf("[%v] last order price: %v, quantity: %v, type: %v", lastOrder.Symbol, lastOrder.Price, lastOrder.Quantity, lastOrder.Type)
-
-	boughtPrice := lastOrder.ToFloat64().Price
 	boughtPriceRatio := GetPriceRatio(latestPrice, boughtPrice)
-
 	log.Printf("[%v] bought price: %v, latest price: %.2f, and ratio: %v", symbol, boughtPrice, latestPrice, boughtPriceRatio)
 
-	if balance > 0 && boughtPriceRatio <= -20 {
-		log.Printf("[%v] going to stop losb...", symbol)
+	if balance >= 10 && boughtPriceRatio <= -20 {
+		log.Printf("[%v] going to stop loss...", symbol)
 		if b.orderManager.IsOrderOpen(symbol) {
 			log.Printf("[%v] order is already open.", symbol)
 
@@ -107,18 +110,13 @@ func (b *Bot) Run(symbol string) {
 			Type:     SellType,
 		}
 
-		if p*q < 10 {
-			log.Printf("[%v] too low volume: %.2f", symbol, p*q)
-			return
-		}
-
 		b.orderManager.Sell(order)
-		log.Printf("[%v] stop loss order price: %v, quantity: %v, type: %v", order.Symbol, order.Price, order.Quantity, order.Type)
+		log.Printf("[%v] stop loss order price: %v, quantity: %v", order.Symbol, order.Price, order.Quantity)
 
 		return
 	}
 
-	if balance > 0 && boughtPriceRatio >= 5 {
+	if balance >= 10 && boughtPriceRatio >= 5 {
 		log.Printf("[%v] going to take profit...", symbol)
 		if b.orderManager.IsOrderOpen(symbol) {
 			log.Printf("[%v] order is already open.", symbol)
@@ -136,19 +134,16 @@ func (b *Bot) Run(symbol string) {
 			Quantity: strconv.FormatFloat(q, 'f', -1, 64),
 			Type:     SellType,
 		}
-		if p*q < 10 {
-			log.Printf("[%v] too low volume: %.2f", symbol, p*q)
-			return
-		}
-
 		b.orderManager.Sell(order)
-		log.Printf("[%v] taking porift order price: %v, quantity: %v, type: %v", order.Symbol, order.Price, order.Quantity, order.Type)
+		log.Printf("[%v] taking porift order price: %v, quantity: %v", order.Symbol, order.Price, order.Quantity)
 	}
 }
 
 func (b *Bot) GetAffordableBudget() float64 {
 	var bought float64
 	usdt := b.accountManager.GetBalance("USDT")
+	log.Printf("usdt balance: %.2f", usdt)
+
 	for _, sym := range symbols {
 		bal := b.accountManager.GetBalance(sym)
 		if bal > 0 {
