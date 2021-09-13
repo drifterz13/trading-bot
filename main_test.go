@@ -20,12 +20,13 @@ func TestGetPriceRatio(t *testing.T) {
 	}
 }
 
+// TODO: support dynamic symbol.
 func TestBotGetAffordableBudget(t *testing.T) {
 	bal1 := map[string]float64{
 		"USDT":     100,
 		"ADAUSDT":  30,
 		"SOLUSDT":  3,
-		"ALGOUSDT": 2.3,
+		"ALGOUSDT": 10,
 	}
 
 	bal2 := map[string]float64{
@@ -47,6 +48,15 @@ func TestBotGetAffordableBudget(t *testing.T) {
 
 	for _, table := range tables {
 		bot := &Bot{
+			priceManager: &mockPriceManager{
+				Prices: map[string]float64{
+					"SOLUSDT":   180,
+					"ADAUSDT":   2.4,
+					"ALGOUSDT":  2.3,
+					"MATICUSDT": 1.25,
+					"BTCUSDT":   45500.50,
+				},
+			},
 			accountManager: &mockAccountManager{Balance: table.Balance},
 		}
 		got := bot.GetAffordableBudget()
@@ -63,7 +73,7 @@ func TestBotGetBuyQuantity(t *testing.T) {
 			Prices: map[string]float64{
 				"SOLUSDT":   180,
 				"ADAUSDT":   2.4,
-				"ALGOUSDT":  2,
+				"ALGOUSDT":  2.2,
 				"MATICUSDT": 1.3,
 				"BTCUSDT":   47500.50,
 			},
@@ -76,19 +86,16 @@ func TestBotGetBuyQuantity(t *testing.T) {
 	}
 
 	want := map[string]string{
-		"ADAUSDT":   "8.3",
+		"ADAUSDT":   "8",
 		"SOLUSDT":   "0.11",
-		"ALGOUSDT":  "10",
-		"MATICUSDT": "15.4",
-		"BTCUSDT":   "0.00042",
+		"ALGOUSDT":  "9",
+		"MATICUSDT": "15",
+		"BTCUSDT":   "0.0004",
 	}
 
 	for _, symbol := range symbols {
 		price := bot.priceManager.GetLatestPrice(symbol)
-		got, err := bot.GetBuyQuantity(symbol, price)
-		if err != nil {
-			t.Error(err)
-		}
+		got := bot.GetOrderQuantity(symbol, price)
 
 		if want[symbol] != got {
 			t.Errorf("symbol %v; want %v; got %v", symbol, want[symbol], got)

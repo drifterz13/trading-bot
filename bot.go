@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"log"
 	"strconv"
 
@@ -58,14 +57,14 @@ func (b *Bot) Run(symbol string) {
 			return
 		}
 
-		qty, err := b.GetBuyQuantity(symbol, latestPrice)
-		if err != nil {
-			panic(err)
-		}
+		p := ToFixed(latestPrice, 2)
+		q := b.GetOrderQuantity(symbol, latestPrice)
+		log.Printf("[%v] order qty: %v, price: %v", symbol, q, p)
+
 		order := &Order{
 			Symbol:   symbol,
-			Price:    strconv.FormatFloat(latestPrice, 'f', -1, 64),
-			Quantity: qty,
+			Price:    strconv.FormatFloat(p, 'f', -1, 64),
+			Quantity: q,
 			Type:     BuyType,
 		}
 		b.orderManager.Buy(order)
@@ -90,12 +89,12 @@ func (b *Bot) Run(symbol string) {
 		}
 
 		p := ToFixed(latestPrice, 2)
-		q := ToFixed(balance/latestPrice, b.GetQuantityDecimal(symbol))
+		q := b.GetOrderQuantity(symbol, latestPrice)
 
 		order := &Order{
 			Symbol:   symbol,
 			Price:    strconv.FormatFloat(p, 'f', -1, 64),
-			Quantity: strconv.FormatFloat(q, 'f', -1, 64),
+			Quantity: q,
 			Type:     SellType,
 		}
 
@@ -107,12 +106,14 @@ func (b *Bot) Run(symbol string) {
 func (b *Bot) GetAffordableBudget() float64 {
 	var bought float64
 	usdt := b.accountManager.GetBalance("USDT")
-	log.Printf("usdt balance: %.2f", usdt)
 
+	// TODO: reduce redundant API call.
 	for _, sym := range symbols {
+		price := b.priceManager.GetLatestPrice(sym)
 		bal := b.accountManager.GetBalance(sym)
-		if bal > 0 {
-			bought = bought + 1
+		value := bal * price
+		if value >= 10 {
+			bought += 1
 		}
 	}
 
@@ -127,35 +128,17 @@ func (b *Bot) GetAffordableBudget() float64 {
 		return 0
 	}
 
+	log.Printf("total usdt %.2f, can afford %.2f", usdt, budget)
+
 	return budget
 }
 
-func (b *Bot) GetQuantityDecimal(symbol string) int {
-	m := map[string]int{
-		"ADAUSDT":   1,
-		"MATICUSDT": 1,
-		"ALGOUSDT":  1,
-		"SOLUSDT":   2,
-		"BTCUSDT":   5,
-	}
-	return m[symbol]
-}
+func (b *Bot) GetOrderQuantity(symbol string, price float64) string {
+	p := strconv.Itoa(int(price))
+	dec := len(p) - 1
 
-func (b *Bot) GetBuyQuantity(symbol string, price float64) (string, error) {
-	var included bool
-	for _, s := range symbols {
-		if s == symbol {
-			included = true
-		}
-	}
-
-	if !included {
-		return "", errors.New("GetBuyQuantity: invalid symbol")
-	}
-
-	dec := b.GetQuantityDecimal(symbol)
 	budget := b.GetAffordableBudget()
 	qty := ToFixed((budget / price), dec)
 
-	return strconv.FormatFloat(qty, 'f', -1, 64), nil
+	return strconv.FormatFloat(qty, 'f', -1, 64)
 }

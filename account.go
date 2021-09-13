@@ -25,7 +25,7 @@ func (am *accountManager) GetBalance(symbol string) float64 {
 
 	var balance float64
 	for _, b := range resp.Balances {
-		if b.Asset == strings.Replace(symbol, "USDT", "", 1) {
+		if (b.Asset == "USDT" && symbol == "USDT") || b.Asset == strings.Replace(symbol, "USDT", "", 1) {
 			f, err := strconv.ParseFloat(b.Free, 32)
 			if err != nil {
 				panic(err)
